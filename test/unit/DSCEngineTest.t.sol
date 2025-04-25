@@ -51,4 +51,10 @@ contract DSCEngineTest is Test {
         vm.expectRevert(DSCEngine.DSCEngine__NeedsMorThanZero.selector);
         dsce.depositCollateral(weth, 0);
     }
+
+    function testGetTokenAmountFromUsd() public {
+        uint256 expectedAmount = 3e18;
+        uint256 actualAmount = dsce.getTokenAmountFromUsd(weth, 6000e18);
+        assertEq(expectedAmount, actualAmount);
+    }
 }
