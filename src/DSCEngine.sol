@@ -30,6 +30,7 @@ import {ReentrancyGuard} from "lib/openzeppelin-contracts/contracts/security/Ree
 import {IERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 import {AggregatorV3Interface} from
     "lib/chainlink-brownie-contracts/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
+import {SafeERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
 
 /**
  * @title DSCEngine
@@ -48,6 +49,8 @@ import {AggregatorV3Interface} from
  * @notice This contract is VERY loosely based on the MakerDAO DSS (DAI) system.
  */
 contract DSCEngine is ReentrancyGuard {
+    using SafeERC20 for IERC20;
+
     /*//////////////////////////////////////////////////////////////
                                  ERRORS
     //////////////////////////////////////////////////////////////*/
@@ -59,6 +62,10 @@ contract DSCEngine is ReentrancyGuard {
     error DSCEngine__MintFailed();
     error DSCEngine__HealthFactorOk();
     error DSCEngine__HealthFactorNotImproved();
+    error DSCEngine__InvalidPriceFeed();
+    error DSCEngine__InsufficientCollateral();
+    error DSCEngine__InsufficientDscBalance();
+    error DSCEngine__InsufficientContractBalance();
 
     /*//////////////////////////////////////////////////////////////
                             STATE VARIABLES
@@ -169,7 +176,7 @@ contract DSCEngine is ReentrancyGuard {
     {
         burnDsc(amountDscToBurn);
         redeemCollateral(tokenCollateralAddress, amountCollateral);
-        // redeem collateral already checks healthfactor
+        // redeemCollateral checks healthfactor for revert
     }
 
     /**
@@ -260,7 +267,9 @@ contract DSCEngine is ReentrancyGuard {
         _revertIfHealthFactorIsBroken(msg.sender);
     }
 
-    function getHealthFactor() external view {}
+    function getHealthFactor(address user) external view returns (uint256) {
+        return _healthFactor(user);
+    }
 
     /*//////////////////////////////////////////////////////////////
                        PRIVATE INTERNAL FUNCTIONS
@@ -268,26 +277,27 @@ contract DSCEngine is ReentrancyGuard {
     function _redeemCollateral(address from, address to, address tokenCollateralAddress, uint256 amountCollateral)
         private
     {
+        if (s_collateralDeposited[from][tokenCollateralAddress] < amountCollateral) {
+            revert DSCEngine__InsufficientCollateral();
+        }
         s_collateralDeposited[from][tokenCollateralAddress] -= amountCollateral;
         emit CollateralRedeemed(from, to, tokenCollateralAddress, amountCollateral);
-
         bool success = IERC20(tokenCollateralAddress).transfer(to, amountCollateral);
-        if (!success) {
-            revert DSCEngine__TransferFailed();
-        }
+        if (!success) revert DSCEngine__TransferFailed();
     }
 
     /**
      * @dev Low-level internal function, do not call unless the function calling it
      * is checking for health factors being broken
      */
-    function _burnDsc(address onBehalfOf, address dscFrom, uint256 amountToBurn) public moreThanZero(amountToBurn) {
+    function _burnDsc(address onBehalfOf, address dscFrom, uint256 amountToBurn) private moreThanZero(amountToBurn) {
+        if (i_dsc.balanceOf(dscFrom) < amountToBurn) {
+            revert DSCEngine__InsufficientDscBalance();
+        }
         s_DSCMinted[onBehalfOf] -= amountToBurn;
         bool success = i_dsc.transferFrom(dscFrom, address(this), amountToBurn);
         // this can hypothetically never fail..
-        if (!success) {
-            revert DSCEngine__TransferFailed();
-        }
+        if (!success) revert DSCEngine__TransferFailed();
         i_dsc.burn(amountToBurn);
     }
 
@@ -331,11 +341,13 @@ contract DSCEngine is ReentrancyGuard {
                    PUBLIC AND EXTERNAL VIEW FUNCTIONS
     //////////////////////////////////////////////////////////////*/
     function getTokenAmountFromUsd(address token, uint256 usdAmountInWei) public view returns (uint256) {
-        // price of ETH
-        // $/ETH ETH ??
-        // $2000 / ETH. $1000 = 0.5 ETH
-        uint256 tokenAmount = (usdAmountInWei * PRECISION) / getUsdValue(token, 1e18);
-        return tokenAmount;
+        AggregatorV3Interface priceFeed = AggregatorV3Interface(s_priceFeeds[token]);
+        (, int256 price,,,) = priceFeed.latestRoundData();
+        if (price <= 0) revert DSCEngine__InvalidPriceFeed();
+
+        // Price is in 1e8 (Chainlink format), adjust to match usdAmountInWei (1e18)
+        uint256 adjustedPrice = uint256(price) * ADDITIONAL_FEED_PRECISION;
+        return (usdAmountInWei * PRECISION) / adjustedPrice;
     }
 
     function getAccountCollateralValue(address user) public view returns (uint256 tokenCollateralValueInUsd) {
@@ -352,6 +364,15 @@ contract DSCEngine is ReentrancyGuard {
     function getUsdValue(address token, uint256 amount) public view returns (uint256) {
         AggregatorV3Interface priceFeed = AggregatorV3Interface(s_priceFeeds[token]);
         (, int256 price,,,) = priceFeed.latestRoundData();
+        if (price <= 0) revert DSCEngine__InvalidPriceFeed();
         return ((uint256(price) * ADDITIONAL_FEED_PRECISION) * amount) / PRECISION;
+    }
+
+    function getAccountInformation(address user)
+        external
+        view
+        returns (uint256 totalDscMinted, uint256 collateralValueUsd)
+    {
+        (totalDscMinted, collateralValueUsd) = _getAccountInformation(user);
     }
 }
