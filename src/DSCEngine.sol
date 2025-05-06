@@ -306,9 +306,14 @@ contract DSCEngine is ReentrancyGuard {
      * @param user User to check healthfactor from
      */
     function _healthFactor(address user) internal view returns (uint256) {
-        // total DSC minted
-        // total collateral value
+        // Get the user's account information
         (uint256 totalDscMinted, uint256 collateralValueInUsd) = _getAccountInformation(user);
+
+        // Check if the user has minted any DSC; if not, they are not at risk of liquidation
+        if (totalDscMinted == 0) {
+            return type(uint256).max; // Or another high value indicating no liquidation risk
+        }
+
         uint256 collateralAdjustedForThreshold = (collateralValueInUsd * LIQUIDATION_THRESHOLD) / LIQUIDATION_PRECISION;
         return (collateralAdjustedForThreshold * PRECISION) / totalDscMinted;
     }
