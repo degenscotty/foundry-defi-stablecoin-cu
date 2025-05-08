@@ -7,7 +7,7 @@
 // 2. Getter view functions should never revert <- evergreen invariant
 pragma solidity ^0.8.18;
 
-import {Test, console} from "forge-std/Test.sol";
+import {Test, console2} from "forge-std/Test.sol";
 import {StdInvariant} from "forge-std/StdInvariant.sol";
 import {DeployDSC} from "script/DeployDSC.s.sol";
 import {DSCEngine} from "src/DSCEngine.sol";
@@ -40,10 +40,9 @@ contract OpenInvariantsTests is StdInvariant, Test {
         uint256 wethValue = dsce.getUsdValue(weth, totalWethDeposited);
         uint256 wbtcValue = dsce.getUsdValue(wbtc, totalWbtcDeposited);
 
-        console.log("weth value:", wethValue);
-        console.log("wbtc value:", wbtcValue);
-        console.log("total supply:", totalSupply);
-        console.log("total value:", wethValue + wbtcValue);
+        console2.log("weth value:", wethValue);
+        console2.log("wbtc value:", wbtcValue);
+        console2.log("total supply:", totalSupply);
 
         assert(wethValue + wbtcValue >= totalSupply);
     }
