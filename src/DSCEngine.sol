@@ -267,10 +267,6 @@ contract DSCEngine is ReentrancyGuard {
         _revertIfHealthFactorIsBroken(msg.sender);
     }
 
-    function getHealthFactor(address user) external view returns (uint256) {
-        return _healthFactor(user);
-    }
-
     /*//////////////////////////////////////////////////////////////
                        PRIVATE INTERNAL FUNCTIONS
     //////////////////////////////////////////////////////////////*/
@@ -310,20 +306,24 @@ contract DSCEngine is ReentrancyGuard {
         collateralValueInUsd = getAccountCollateralValue(user);
     }
 
-    /**
-     * Returns how close to liquidation a user is
-     * If a user goes below 1, then they can get liquidated;
-     * @param user User to check healthfactor from
-     */
-    function _healthFactor(address user) internal view returns (uint256) {
-        // Get the user's account information
+    function _healthFactor(address user) private view returns (uint256) {
         (uint256 totalDscMinted, uint256 collateralValueInUsd) = _getAccountInformation(user);
+        return _calculateHealthFactor(totalDscMinted, collateralValueInUsd);
+    }
 
-        // Check if the user has minted any DSC; if not, they are not at risk of liquidation
-        if (totalDscMinted == 0) {
-            return type(uint256).max; // Or another high value indicating no liquidation risk
-        }
-
+    /**
+     * @notice Returns how close to liquidation a user is.
+     * @dev If a user goes below 1, then they can get liquidated.
+     * @param totalDscMinted The total amount of DSC minted by the user.
+     * @param collateralValueInUsd The total value of the user's collateral in USD.
+     * @return healthFactor The calculated health factor of the user.
+     */
+    function _calculateHealthFactor(uint256 totalDscMinted, uint256 collateralValueInUsd)
+        internal
+        pure
+        returns (uint256)
+    {
+        if (totalDscMinted == 0) return type(uint256).max;
         uint256 collateralAdjustedForThreshold = (collateralValueInUsd * LIQUIDATION_THRESHOLD) / LIQUIDATION_PRECISION;
         return (collateralAdjustedForThreshold * PRECISION) / totalDscMinted;
     }
@@ -340,6 +340,14 @@ contract DSCEngine is ReentrancyGuard {
     /*//////////////////////////////////////////////////////////////
                    PUBLIC AND EXTERNAL VIEW FUNCTIONS
     //////////////////////////////////////////////////////////////*/
+    function calculateHealthFactor(uint256 totalDscMinted, uint256 collateralValueInUsd)
+        external
+        pure
+        returns (uint256)
+    {
+        return _calculateHealthFactor(totalDscMinted, collateralValueInUsd);
+    }
+
     function getTokenAmountFromUsd(address token, uint256 usdAmountInWei) public view returns (uint256) {
         AggregatorV3Interface priceFeed = AggregatorV3Interface(s_priceFeeds[token]);
         (, int256 price,,,) = priceFeed.latestRoundData();
@@ -374,5 +382,45 @@ contract DSCEngine is ReentrancyGuard {
         returns (uint256 totalDscMinted, uint256 collateralValueUsd)
     {
         (totalDscMinted, collateralValueUsd) = _getAccountInformation(user);
+    }
+
+    function getPrecision() external pure returns (uint256) {
+        return PRECISION;
+    }
+
+    function getAdditionalFeedPrecision() external pure returns (uint256) {
+        return ADDITIONAL_FEED_PRECISION;
+    }
+
+    function getLiquidationThreshold() external pure returns (uint256) {
+        return LIQUIDATION_THRESHOLD;
+    }
+
+    function getLiquidationBonus() external pure returns (uint256) {
+        return LIQUIDATOR_BONUS;
+    }
+
+    function getLiquidationPrecision() external pure returns (uint256) {
+        return LIQUIDATION_PRECISION;
+    }
+
+    function getMinHealthFactor() external pure returns (uint256) {
+        return MIN_HEALTH_FACTOR;
+    }
+
+    function getCollateralTokens() external view returns (address[] memory) {
+        return s_collateralTokens;
+    }
+
+    function getDsc() external view returns (address) {
+        return address(i_dsc);
+    }
+
+    function getCollateralTokenPriceFeed(address token) external view returns (address) {
+        return s_priceFeeds[token];
+    }
+
+    function getHealthFactor(address user) external view returns (uint256) {
+        return _healthFactor(user);
     }
 }
