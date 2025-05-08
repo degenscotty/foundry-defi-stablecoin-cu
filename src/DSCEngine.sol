@@ -31,6 +31,7 @@ import {IERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.so
 import {AggregatorV3Interface} from
     "lib/chainlink-brownie-contracts/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
 import {SafeERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
+import {OracleLib} from "src/libraries/OracleLib.sol";
 
 /**
  * @title DSCEngine
@@ -49,8 +50,6 @@ import {SafeERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/utils/
  * @notice This contract is VERY loosely based on the MakerDAO DSS (DAI) system.
  */
 contract DSCEngine is ReentrancyGuard {
-    using SafeERC20 for IERC20;
-
     /*//////////////////////////////////////////////////////////////
                                  ERRORS
     //////////////////////////////////////////////////////////////*/
@@ -66,6 +65,12 @@ contract DSCEngine is ReentrancyGuard {
     error DSCEngine__InsufficientCollateral();
     error DSCEngine__InsufficientDscBalance();
     error DSCEngine__InsufficientContractBalance();
+
+    /*//////////////////////////////////////////////////////////////
+                                 TYPES
+    //////////////////////////////////////////////////////////////*/
+    using OracleLib for AggregatorV3Interface;
+    using SafeERC20 for IERC20;
 
     /*//////////////////////////////////////////////////////////////
                             STATE VARIABLES

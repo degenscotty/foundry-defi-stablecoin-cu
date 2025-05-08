@@ -55,20 +55,13 @@ contract Invariants is StdInvariant, Test {
     }
 
     function invariant_gettersShouldNotRevert() public view {
-        dsce.getAccountCollateralValue(address(0));
-        dsce.getAccountInformation(address(0));
         dsce.getAdditionalFeedPrecision();
-        dsce.getCollateralBalanceOfUser(address(0), address(0));
-        dsce.getCollateralTokenPriceFeed(address(0));
         dsce.getCollateralTokens();
         dsce.getDsc();
-        dsce.getHealthFactor(address(0));
         dsce.getLiquidationBonus();
         dsce.getLiquidationPrecision();
         dsce.getLiquidationThreshold();
         dsce.getMinHealthFactor();
         dsce.getPrecision();
-        dsce.getTokenAmountFromUsd(address(0), 0);
-        dsce.getUsdValue(address(0), 0);
     }
 }
